@@ -231,3 +231,76 @@ def test_run_simulation_invalid_input(mass, Iz, dt, Nt):
             np.zeros(2),
             mass, Iz, dt, Nt
         )
+        
+def test_acceleration_periodic_x_equilibrium():
+    """Check equilibrium for a spring crossing the periodic x boundary."""
+    pos = np.array([[0.0, 0.0], [9.0, 0.0]])
+    theta = np.zeros(2)
+
+    acc, alpha = compute_accelerations(
+        pos,
+        theta,
+        ci=np.array([0]),
+        cj=np.array([1]),
+        si=np.array([0]),
+        sj=np.array([0]),
+        springL=np.array([1.0]),
+        k_eff=np.array([1.0]),
+        mass=1.0,
+        Iz=1.0,
+        site_offsets=np.zeros((2, 1, 2)),
+        boxLx=10.0,
+        boxLy=10.0,
+        periodic_x=True
+    )
+
+    assert np.allclose(acc, 0)
+    assert np.allclose(alpha, 0)
+
+
+def test_acceleration_periodic_y_equilibrium():
+    """Check equilibrium for a spring crossing the periodic y boundary."""
+    pos = np.array([[0.0, 0.0], [0.0, 9.0]])
+    theta = np.zeros(2)
+
+    acc, alpha = compute_accelerations(
+        pos,
+        theta,
+        ci=np.array([0]),
+        cj=np.array([1]),
+        si=np.array([0]),
+        sj=np.array([0]),
+        springL=np.array([1.0]),
+        k_eff=np.array([1.0]),
+        mass=1.0,
+        Iz=1.0,
+        site_offsets=np.zeros((2, 1, 2)),
+        boxLx=10.0,
+        boxLy=10.0,
+        periodic_y=True
+    )
+
+    assert np.allclose(acc, 0)
+    assert np.allclose(alpha, 0)
+
+
+def test_periodic_boundary_requires_box_length():
+    """Check that periodic directions require the corresponding box length."""
+    pos = np.array([[0.0, 0.0], [1.0, 0.0]])
+    theta = np.zeros(2)
+
+    with pytest.raises(ValueError, match="boxLx is required"):
+        compute_accelerations(
+            pos,
+            theta,
+            ci=np.array([0]),
+            cj=np.array([1]),
+            si=np.array([0]),
+            sj=np.array([0]),
+            springL=np.array([1.0]),
+            k_eff=np.array([1.0]),
+            mass=1.0,
+            Iz=1.0,
+            site_offsets=np.zeros((2, 1, 2)),
+            periodic_x=True
+        )

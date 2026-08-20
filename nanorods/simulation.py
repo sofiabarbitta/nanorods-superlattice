@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from .geometry import get_sites, sub2ind
+from .geometry import get_sites, sub2ind, minimum_image
 
 
 def nanorod_moment_of_inertia(m_cylinder, m_sphere, r, l):
@@ -81,7 +81,10 @@ def line_displacement(pos0, Nx, Ny, amplitude, direction, mode):
     return pos, vel, theta, omega
 
 
-def compute_accelerations(pos, theta, ci, cj, si, sj, springL, k_eff, mass, Iz, site_offsets):
+def compute_accelerations(
+    pos, theta, ci, cj, si, sj, springL, k_eff, mass, Iz, site_offsets,
+    boxLx=None, boxLy=None, periodic_x=False, periodic_y=False
+):
     """
     Calculate translational and angular accelerations.
 
@@ -107,6 +110,10 @@ def compute_accelerations(pos, theta, ci, cj, si, sj, springL, k_eff, mass, Iz, 
         Nanorod moment of inertia (in kg m^2).
     site_offsets: ndarray
         Interaction site positions relative to each nanorod center.
+    boxLx, boxLy: float or None
+        Simulation box dimensions (in meters).
+    periodic_x, periodic_y: bool
+        Periodic boundary conditions along x and y.
 
     --- Returns ---
     acc: ndarray, shape (N, 2)
@@ -123,6 +130,18 @@ def compute_accelerations(pos, theta, ci, cj, si, sj, springL, k_eff, mass, Iz, 
     p_j = sites[cj, sj]
 
     sep_vec = p_i-p_j
+    
+    if periodic_x and boxLx is None:
+        raise ValueError("boxLx is required when periodic_x is True")
+    if periodic_y and boxLy is None:
+        raise ValueError("boxLy is required when periodic_y is True")
+
+    if periodic_x or periodic_y:
+        sep_vec = minimum_image(
+            sep_vec, boxLx, boxLy,
+            periodic_x, periodic_y
+        )
+    
     sep = np.linalg.norm(sep_vec, axis=1)
     sep_safe = np.where(sep > 1e-12, sep, 1e-12)
 
@@ -194,13 +213,21 @@ def run_simulation(geometry, pos, vel, theta, omega, mass, Iz, dt, Nt):
     springL = geometry["springL"]
     k_eff = geometry["k_eff"]
     site_offsets = geometry["site_offsets"]
+    boxLx = geometry.get("boxLx")
+    boxLy = geometry.get("boxLy")
+    periodic_x = geometry.get("periodic_x", False)
+    periodic_y = geometry.get("periodic_y", False)
 
     pos_profiles = [pos.copy()]
     theta_profiles = [theta.copy()]
     u_profiles = [(pos-pos0).copy()]
     time_profiles = [0.0]
 
-    acc, alpha = compute_accelerations(pos, theta, ci, cj, si, sj, springL, k_eff, mass, Iz, site_offsets)
+    acc, alpha = compute_accelerations(
+        pos, theta, ci, cj, si, sj,
+        springL, k_eff, mass, Iz, site_offsets,
+        boxLx, boxLy, periodic_x, periodic_y
+    )
 
     t = 0.0
 
@@ -214,7 +241,11 @@ def run_simulation(geometry, pos, vel, theta, omega, mass, Iz, dt, Nt):
         pos += vel*dt
         theta += omega*dt
 
-        acc, alpha = compute_accelerations(pos, theta, ci, cj, si, sj, springL, k_eff, mass, Iz, site_offsets)
+        acc, alpha = compute_accelerations(
+            pos, theta, ci, cj, si, sj,
+            springL, k_eff, mass, Iz, site_offsets,
+            boxLx, boxLy, periodic_x, periodic_y
+        )
 
         # Second half kick.
         vel += acc*dt/2

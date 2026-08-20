@@ -7,6 +7,17 @@ def sub2ind(array_shape, i, j):
     """Convert 2D lattice indices (i, j) to a linear index."""
     return i*array_shape[1]+j
 
+def minimum_image(sep, boxLx, boxLy, periodic_x=False, periodic_y=False):
+    """Apply the minimum-image convention along periodic directions."""
+    sep = sep.copy()
+
+    if periodic_x:
+        sep[..., 0] -= np.round(sep[..., 0]/boxLx)*boxLx
+
+    if periodic_y:
+        sep[..., 1] -= np.round(sep[..., 1]/boxLy)*boxLy
+
+    return sep
 
 def get_sites(pos, theta, site_offsets):
     """
@@ -210,7 +221,10 @@ def nanorod_neighbors(row, col):
     return [(1, 0), (1, 1), (0, 1)]
 
 
-def build_springs_by_distance(Nx, Ny, pos0, site_offsets, smax):
+def build_springs_by_distance(
+    Nx, Ny, pos0, site_offsets, smax, boxLx, boxLy,
+    periodic_x=False, periodic_y=False
+):
     """
     Build the spring connections between neighboring nanorods.
 
@@ -223,6 +237,10 @@ def build_springs_by_distance(Nx, Ny, pos0, site_offsets, smax):
         Interaction site positions relative to each nanorod center.
     smax: float
         Maximum interaction distance (in meters).
+    boxLx, boxLy: float
+        Simulation box dimensions (in meters).
+    periodic_x, periodic_y: bool
+        Periodic boundary conditions along x and y.
 
     --- Returns ---
     ci, cj: ndarray
@@ -240,13 +258,24 @@ def build_springs_by_distance(Nx, Ny, pos0, site_offsets, smax):
             for drow, dcol in nanorod_neighbors(row, col):
                 rr, cc = row+drow, col+dcol
 
-                # Open boundaries.
-                if rr < 0 or rr >= Ny or cc < 0 or cc >= Nx:
+                if periodic_y:
+                    rr %= Ny
+                elif rr < 0 or rr >= Ny:
+                    continue
+
+                if periodic_x:
+                    cc %= Nx
+                elif cc < 0 or cc >= Nx:
                     continue
 
                 j = sub2ind((Ny, Nx), rr, cc)
 
                 sep = sites0[i, :, None]-sites0[j, None]
+                sep = minimum_image(
+                    sep, boxLx, boxLy,
+                    periodic_x, periodic_y
+                )
+
                 dist = np.linalg.norm(sep, axis=-1)
                 pairs = match_unique_pairs(dist, smax)
 
@@ -263,7 +292,10 @@ def build_springs_by_distance(Nx, Ny, pos0, site_offsets, smax):
     return tuple(np.asarray(values, dtype=int) for values in (ci, cj, si, sj))
 
 
-def compute_effective_spring_constants(pos0, site_offsets, ci, cj, si, sj, L, d, smax, k_lig):
+def compute_effective_spring_constants(
+    pos0, site_offsets, ci, cj, si, sj, L, d, smax, k_lig,
+    boxLx, boxLy, periodic_x=False, periodic_y=False
+):
     """
     Compute the effective spring constant of each connection.
 
@@ -286,6 +318,10 @@ def compute_effective_spring_constants(pos0, site_offsets, ci, cj, si, sj, L, d,
         Maximum ligand interaction distance (in meters).
     k_lig: float
         Spring constant of a single ligand (in N/m).
+    boxLx, boxLy: float
+        Simulation box dimensions (in meters).
+    periodic_x, periodic_y: bool
+        Periodic boundary conditions along x and y.
 
     --- Returns ---
     k_eff: ndarray
@@ -304,14 +340,21 @@ def compute_effective_spring_constants(pos0, site_offsets, ci, cj, si, sj, L, d,
         pts2 += np.array([pos0[j, 0], pos0[j, 1], 0])
 
         sep = pts1[:, None]-pts2[None]
+        sep = minimum_image(
+            sep, boxLx, boxLy,
+            periodic_x, periodic_y
+        )
+
         dist = np.linalg.norm(sep, axis=-1)
 
         n_count[q] = len(match_unique_pairs(dist, smax))
 
     return k_lig*n_count, n_count
 
-
-def build_nanorod_geometry(Nx, Ny, L, d, s, smax, ligand_surface_density, k_lig):
+def build_nanorod_geometry(
+    Nx, Ny, L, d, s, smax, ligand_surface_density, k_lig,
+    periodic_x=False, periodic_y=False
+):
     """
     Build the nanorod lattice and its spring network.
 
@@ -330,6 +373,8 @@ def build_nanorod_geometry(Nx, Ny, L, d, s, smax, ligand_surface_density, k_lig)
         Ligand surface density (in nm^-2).
     k_lig: float
         Spring constant of a single ligand (in N/m).
+    periodic_x, periodic_y: bool
+        Periodic boundary conditions along x and y.
 
     --- Returns ---
     geometry: dict
@@ -347,10 +392,11 @@ def build_nanorod_geometry(Nx, Ny, L, d, s, smax, ligand_surface_density, k_lig)
         raise ValueError("ligand_surface_density must be positive")
     if k_lig <= 0:
         raise ValueError("k_lig must be positive")
+    if periodic_x and Nx%2 != 0:
+        raise ValueError("Nx must be even when periodic_x is True")
 
     l = L-d
 
-    # Superlattice constants along the parallel and perpendicular directions.
     dx = l+np.sqrt(3)/2*(d+s)
     dy = d+s
 
@@ -363,21 +409,30 @@ def build_nanorod_geometry(Nx, Ny, L, d, s, smax, ligand_surface_density, k_lig)
     boxLx = Nx*dx
     boxLy = Ny*dy
 
-    # Same sampling density is used along the two surface directions.
     sites_per_nm = np.sqrt(ligand_surface_density)
 
     offsets, n_sites = capsule_surface_offsets(L, d, sites_per_nm)
     site_offsets = np.repeat(offsets[None], len(pos0), axis=0)
 
     ci, cj, si, sj = build_springs_by_distance(
-        Nx, Ny, pos0, site_offsets, smax
+        Nx, Ny, pos0, site_offsets, smax,
+        boxLx, boxLy, periodic_x, periodic_y
     )
 
     sites0 = get_sites(pos0, np.zeros(len(pos0)), site_offsets)
-    springL = np.linalg.norm(sites0[ci, si]-sites0[cj, sj], axis=1)
+
+    sep0 = sites0[ci, si]-sites0[cj, sj]
+    sep0 = minimum_image(
+        sep0, boxLx, boxLy,
+        periodic_x, periodic_y
+    )
+
+    springL = np.linalg.norm(sep0, axis=1)
 
     k_eff, n_count = compute_effective_spring_constants(
-        pos0, site_offsets, ci, cj, si, sj, L, d, smax, k_lig
+        pos0, site_offsets, ci, cj, si, sj,
+        L, d, smax, k_lig,
+        boxLx, boxLy, periodic_x, periodic_y
     )
 
     return {
@@ -394,5 +449,7 @@ def build_nanorod_geometry(Nx, Ny, L, d, s, smax, ligand_surface_density, k_lig)
         "boxLy": boxLy,
         "dx": dx,
         "dy": dy,
-        "n_sites": n_sites
+        "n_sites": n_sites,
+        "periodic_x": periodic_x,
+        "periodic_y": periodic_y
     }
