@@ -31,9 +31,9 @@ Each nanorod has two translational degrees of freedom along the $x$ and $y$ dire
 
 Neighboring nanorods interact through ligand-mediated springs connecting interaction sites on their surfaces. Multiple ligand connections acting between the same surface regions are treated as springs acting in parallel, giving an effective spring constant
 
-$$
-k_{\mathrm{eff}} = N_{\mathrm{lig}} k_{\mathrm{lig}},
-$$
+```math
+k_{\mathrm{eff}} = N_{\mathrm{lig}} k_{\mathrm{lig}}.
+```
 
 where $N_{\mathrm{lig}}$ is the number of ligand connections and $k_{\mathrm{lig}}$ is the spring constant of a single ligand.
 
@@ -170,11 +170,9 @@ and the notebook automatically selects the closest available simulation frame.
 
 The color of each nanorod represents the magnitude of its center-of-mass displacement,
 
-$$
-|\mathbf{u}_i|
-=
-|\mathbf{r}_i-\mathbf{r}_{i,0}|.
-$$
+```math
+|\mathbf{u}_i| = |\mathbf{r}_i-\mathbf{r}_{i,0}|.
+```
 
 A common color normalization is used for the full simulation so that displacement amplitudes can be compared between different times.
 
@@ -217,10 +215,14 @@ Run the complete test suite with:
 python -m pytest
 ```
 
-Test coverage can be evaluated with:
+Test coverage for the numerical modules can be evaluated with:
 
 ```bash
-python -m pytest --cov=nanorods tests/
+python -m pytest \
+    --cov=nanorods.geometry \
+    --cov=nanorods.simulation \
+    --cov-report=term-missing \
+    tests/
 ```
 
 ## Model assumptions and limitations
