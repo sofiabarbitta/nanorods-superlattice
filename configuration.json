@@ -1,0 +1,25 @@
+{
+    "lattice": {
+        "Nx": 36,
+        "Ny": 80
+    },
+    "nanorod": {
+        "aspect_ratio": 3.5,
+        "diameter_nm": 25.0,
+        "spacing_nm": 3.4
+    },
+    "ligands": {
+        "maximum_interaction_distance_nm": 4.4,
+        "surface_density_nm2": 4.0,
+        "spring_constant_N_m": 2.0
+    },
+    "excitation": {
+        "amplitude_nm": 0.5,
+        "direction": "parallel",
+        "mode": "longitudinal"
+    },
+    "simulation": {
+        "time_step_ps": 1.0,
+        "total_time_ns": 1.5
+    }
+}
