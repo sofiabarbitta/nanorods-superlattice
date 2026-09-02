@@ -8,6 +8,7 @@ Nanorods are modeled as rigid bodies with translational and rotational degrees o
 
 ```text
 nanorod-superlattice/
+├── setup.py
 ├── configuration.json
 ├── requirements.txt
 ├── README.md
@@ -135,9 +136,24 @@ Install the required Python packages:
 python -m pip install -r requirements.txt
 ```
 
+Install the `nanorods` package in editable mode:
+
+```bash
+python -m pip install -e .
+```
+
+The package can then be imported directly from Python, for example:
+
+```python
+from nanorods.geometry import build_nanorod_geometry
+from nanorods.simulation import run_simulation
+```
+
+The editable installation allows changes to the source code to be immediately available without reinstalling the package.
+
 ## Running the simulation
 
-Open the example notebook:
+After installing the package, open the example notebook:
 
 ```text
 run_examples/nanorod_simulation.ipynb
